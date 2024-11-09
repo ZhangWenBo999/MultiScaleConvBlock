@@ -12,6 +12,28 @@ from .nn import (
     count_flops_attn,
     gamma_embedding
 )
+from .MultiScaleConvBlock import *
+
+# from .LDCONV2D2 import *
+
+# from .MLLA1 import *
+
+
+# from .cbam_eca import *
+
+# from nn import (
+#     checkpoint,
+#     zero_module,
+#     normalization,
+#     count_flops_attn,
+#     gamma_embedding
+# )
+# from MultiScaleConvBlock import *
+# from cbam_eca import *
+
+# from LDCONV2D2 import *
+
+# from MLLA1 import *
 
 class SiLU(nn.Module):
     def forward(self, x):
@@ -56,7 +78,8 @@ class Upsample(nn.Module):
         self.out_channel = out_channel or channels
         self.use_conv = use_conv
         if use_conv:
-            self.conv = nn.Conv2d(self.channels, self.out_channel, 3, padding=1)
+            # self.conv = nn.Conv2d(self.channels, self.out_channel, 3, padding=1)
+            self.conv = MultiScaleConvBlock(in_channels=self.channels, out_channels=self.out_channel)
 
     def forward(self, x):
         assert x.shape[1] == self.channels
@@ -79,9 +102,10 @@ class Downsample(nn.Module):
         self.use_conv = use_conv
         stride = 2
         if use_conv:
-            self.op = nn.Conv2d(
-                self.channels, self.out_channel, 3, stride=stride, padding=1
-            )
+            # self.op = nn.Conv2d(
+            #     self.channels, self.out_channel, 3, stride=stride, padding=1
+            # )
+            self.op = MultiScaleConvBlock(in_channels=self.channels, out_channels=self.out_channel)
         else:
             assert self.channels == self.out_channel
             self.op = nn.AvgPool2d(kernel_size=stride, stride=stride)
@@ -130,7 +154,8 @@ class ResBlock(EmbedBlock):
         self.in_layers = nn.Sequential(
             normalization(channels),
             SiLU(),
-            nn.Conv2d(channels, self.out_channel, 3, padding=1),
+            # nn.Conv2d(channels, self.out_channel, 3, padding=1),
+            MultiScaleConvBlock(in_channels=channels, out_channels=self.out_channel)
         )
 
         self.updown = up or down
@@ -156,18 +181,21 @@ class ResBlock(EmbedBlock):
             SiLU(),
             nn.Dropout(p=dropout),
             zero_module(
-                nn.Conv2d(self.out_channel, self.out_channel, 3, padding=1)
+                # nn.Conv2d(self.out_channel, self.out_channel, 3, padding=1)
+                MultiScaleConvBlock(in_channels=self.out_channel, out_channels=self.out_channel)
             ),
         )
 
         if self.out_channel == channels:
             self.skip_connection = nn.Identity()
         elif use_conv:
-            self.skip_connection = nn.Conv2d(
-                channels, self.out_channel, 3, padding=1
-            )
+            # self.skip_connection = nn.Conv2d(
+            #     channels, self.out_channel, 3, padding=1
+            # )
+            self.skip_connection = MultiScaleConvBlock(in_channels=channels, out_channels=self.out_channel)
         else:
-            self.skip_connection = nn.Conv2d(channels, self.out_channel, 1)
+            # self.skip_connection = nn.Conv2d(channels, self.out_channel, 1)
+            self.skip_connection = MultiScaleConvBlock(in_channels=channels, out_channels=self.out_channel)
 
     def forward(self, x, emb):
         """
@@ -392,7 +420,8 @@ class UNet(nn.Module):
 
         ch = input_ch = int(channel_mults[0] * inner_channel)
         self.input_blocks = nn.ModuleList(
-            [EmbedSequential(nn.Conv2d(in_channel, ch, 3, padding=1))]
+            # [EmbedSequential(nn.Conv2d(in_channel, ch, 3, padding=1))]
+            [EmbedSequential(MultiScaleConvBlock(in_channels=in_channel, out_channels=ch))]
         )
         self._feature_size = ch
         input_block_chans = [ch]
@@ -519,7 +548,8 @@ class UNet(nn.Module):
         self.out = nn.Sequential(
             normalization(ch),
             SiLU(),
-            zero_module(nn.Conv2d(input_ch, out_channel, 3, padding=1)),
+            # zero_module(nn.Conv2d(input_ch, out_channel, 3, padding=1)),
+            zero_module(MultiScaleConvBlock(in_channels=input_ch, out_channels=out_channel)),
         )
 
     def forward(self, x, gammas):
@@ -558,3 +588,4 @@ if __name__ == '__main__':
     x = torch.randn((b, c, h, w))
     emb = torch.ones((b, ))
     out = model(x, emb)
+    print(out.shape)
